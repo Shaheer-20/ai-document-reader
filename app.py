@@ -6,9 +6,12 @@ import csv
 import io
 import openpyxl
 from bs4 import BeautifulSoup
-from flask import Flask, render_template, request, jsonify, session
+from flask import Flask, render_template, request, jsonify, session, send_file
 from dotenv import load_dotenv
 import uuid
+import base64
+import json
+from datetime import datetime
 
 # Load environment variables from a .env file
 load_dotenv()
@@ -81,6 +84,90 @@ def extract_text_from_file(file_stream, filename):
             return None
     except Exception as e:
         print(f"Error extracting text from {filename}: {e}")
+        return None
+
+def generate_document_preview(file_stream, filename):
+    """Generate preview for different document types."""
+    try:
+        file_ext = os.path.splitext(filename)[1].lower()
+        
+        if file_ext == '.pdf':
+            return generate_pdf_preview(file_stream)
+        elif file_ext == '.html':
+            return generate_html_preview(file_stream)
+        elif file_ext in ['.csv', '.xlsx']:
+            return generate_table_preview(file_stream, file_ext)
+        else:
+            return None
+    except Exception as e:
+        print(f"Error generating preview for {filename}: {e}")
+        return None
+
+def generate_pdf_preview(file_stream):
+    """Generate PDF preview as base64 images."""
+    try:
+        doc = fitz.open(stream=file_stream, filetype="pdf")
+        preview_pages = []
+        
+        # Get first 3 pages for preview
+        for page_num in range(min(3, len(doc))):
+            page = doc[page_num]
+            pix = page.get_pixmap(matrix=fitz.Matrix(0.5, 0.5))  # Scale down
+            img_data = pix.tobytes("png")
+            img_base64 = base64.b64encode(img_data).decode()
+            preview_pages.append({
+                'page': page_num + 1,
+                'image': img_base64,
+                'width': pix.width,
+                'height': pix.height
+            })
+        
+        doc.close()
+        return {
+            'type': 'pdf',
+            'pages': preview_pages,
+            'total_pages': len(doc)
+        }
+    except Exception as e:
+        print(f"Error generating PDF preview: {e}")
+        return None
+
+def generate_html_preview(file_stream):
+    """Generate HTML preview."""
+    try:
+        soup = BeautifulSoup(file_stream, "html.parser")
+        # Get first 500 characters of visible text
+        text = soup.get_text(separator=" ", strip=True)[:500]
+        return {
+            'type': 'html',
+            'preview_text': text,
+            'title': soup.title.string if soup.title else 'HTML Document'
+        }
+    except Exception as e:
+        print(f"Error generating HTML preview: {e}")
+        return None
+
+def generate_table_preview(file_stream, file_ext):
+    """Generate table preview for CSV/Excel files."""
+    try:
+        if file_ext == '.csv':
+            data = file_stream.read().decode('utf-8')
+            reader = csv.reader(io.StringIO(data))
+            rows = list(reader)[:10]  # First 10 rows
+        else:  # .xlsx
+            workbook = openpyxl.load_workbook(file_stream)
+            sheet = workbook.active
+            rows = []
+            for row in sheet.iter_rows(max_row=10, values_only=True):
+                rows.append([str(cell) if cell is not None else "" for cell in row])
+        
+        return {
+            'type': 'table',
+            'data': rows,
+            'file_type': file_ext
+        }
+    except Exception as e:
+        print(f"Error generating table preview: {e}")
         return None
 
 # --- Gemini API Function ---
@@ -253,7 +340,13 @@ def index():
                     # Store document text in session for chat functionality
                     session['document_text'] = text
                     session['document_filename'] = file.filename
+                    session['document_size'] = len(file_stream)
+                    session['upload_time'] = datetime.now().isoformat()
                     document_uploaded = True
+                    
+                    # Generate document preview
+                    preview = generate_document_preview(io.BytesIO(file_stream), file.filename)
+                    session['document_preview'] = preview
                     
                     # 5. Get summary from Gemini
                     summary, error = get_summary_from_gemini(text)
@@ -288,6 +381,58 @@ def chat():
         return jsonify({'error': error}), 500
     
     return jsonify({'answer': answer})
+
+@app.route('/preview')
+def preview():
+    """Get document preview data."""
+    if 'document_preview' not in session:
+        return jsonify({'error': 'No document uploaded'}), 400
+    
+    return jsonify(session['document_preview'])
+
+@app.route('/document-info')
+def document_info():
+    """Get document information."""
+    if 'document_filename' not in session:
+        return jsonify({'error': 'No document uploaded'}), 400
+    
+    return jsonify({
+        'filename': session.get('document_filename'),
+        'size': session.get('document_size'),
+        'upload_time': session.get('upload_time'),
+        'preview_type': session.get('document_preview', {}).get('type')
+    })
+
+@app.route('/export-summary')
+def export_summary():
+    """Export summary as text file."""
+    if 'document_text' not in session:
+        return jsonify({'error': 'No document uploaded'}), 400
+    
+    summary = request.args.get('summary', '')
+    filename = session.get('document_filename', 'document')
+    name_without_ext = os.path.splitext(filename)[0]
+    
+    # Create a simple text file
+    output = io.StringIO()
+    output.write(f"Document Summary for: {filename}\n")
+    output.write("=" * 50 + "\n\n")
+    output.write(summary)
+    output.write("\n\n" + "=" * 50 + "\n")
+    output.write(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+    
+    return send_file(
+        io.BytesIO(output.getvalue().encode()),
+        as_attachment=True,
+        download_name=f"{name_without_ext}_summary.txt",
+        mimetype='text/plain'
+    )
+
+@app.route('/clear-session', methods=['POST'])
+def clear_session():
+    """Clear the current session."""
+    session.clear()
+    return jsonify({'success': True})
 
 if __name__ == '__main__':
     # Use 0.0.0.0 to make it accessible on your network, or keep 127.0.0.1
