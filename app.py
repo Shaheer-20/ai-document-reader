@@ -84,6 +84,7 @@ def store_document(file_data, filename, text_content, summary=None, preview_data
         
         document_id = cursor.lastrowid
         conn.commit()
+        print(f"Document stored successfully: ID={document_id}, Filename={filename}")  # Debug log
         return document_id
     except sqlite3.IntegrityError:
         # Document already exists, get existing ID
@@ -91,7 +92,12 @@ def store_document(file_data, filename, text_content, summary=None, preview_data
         result = cursor.fetchone()
         document_id = result['id'] if result else None
         conn.commit()
+        print(f"Document already exists: ID={document_id}, Filename={filename}")  # Debug log
         return document_id
+    except Exception as e:
+        print(f"Error storing document: {e}")  # Debug log
+        conn.rollback()
+        return None
     finally:
         conn.close()
 
@@ -111,6 +117,7 @@ def get_documents_by_session(session_id):
     cursor.execute('SELECT * FROM documents WHERE session_id = ? ORDER BY upload_time DESC', (session_id,))
     documents = cursor.fetchall()
     conn.close()
+    print(f"Retrieved {len(documents)} documents for session {session_id}")  # Debug log
     return documents
 
 def store_chat_message(document_id, question, answer):
@@ -225,11 +232,13 @@ def generate_pdf_preview(file_stream):
     try:
         doc = fitz.open(stream=file_stream, filetype="pdf")
         preview_pages = []
+        total_pages = len(doc)
         
-        # Get first 3 pages for preview
-        for page_num in range(min(3, len(doc))):
+        # Get first 3 pages for preview with optimized settings
+        for page_num in range(min(3, total_pages)):
             page = doc[page_num]
-            pix = page.get_pixmap(matrix=fitz.Matrix(0.5, 0.5))  # Scale down
+            # Use smaller matrix for faster processing
+            pix = page.get_pixmap(matrix=fitz.Matrix(0.4, 0.4), alpha=False)
             img_data = pix.tobytes("png")
             img_base64 = base64.b64encode(img_data).decode()
             preview_pages.append({
@@ -238,12 +247,14 @@ def generate_pdf_preview(file_stream):
                 'width': pix.width,
                 'height': pix.height
             })
+            # Clean up pixmap to free memory
+            pix = None
         
         doc.close()
         return {
             'type': 'pdf',
             'pages': preview_pages,
-            'total_pages': len(doc)
+            'total_pages': total_pages
         }
     except Exception as e:
         print(f"Error generating PDF preview: {e}")
@@ -454,24 +465,29 @@ def index():
                 text = extract_text_from_file(io.BytesIO(file_stream), file.filename)
 
                 if text:
-                    # Generate document preview
-                    preview = generate_document_preview(io.BytesIO(file_stream), file.filename)
+                    print(f"Text extracted successfully, length: {len(text)}")  # Debug log
                     
-                    # Get summary from Gemini
+                    # Get summary from Gemini instantly
                     summary, error = get_summary_from_gemini(text)
                     
-                    if not error and summary:
+                    if error:
+                        print(f"Gemini API error: {error}")  # Debug log
+                        error = f"Failed to generate summary: {error}"
+                    elif summary:
+                        print(f"Summary generated successfully, length: {len(summary)}")  # Debug log
+                        
                         # Store document in database
                         session_id = session.get('session_id', str(uuid.uuid4()))
                         if 'session_id' not in session:
                             session['session_id'] = session_id
                         
+                        # Store document without preview data for now
                         document_id = store_document(
                             file_stream, 
                             file.filename, 
                             text, 
                             summary, 
-                            preview, 
+                            None,  # No preview data
                             session_id
                         )
                         
@@ -481,8 +497,12 @@ def index():
                         session['document_filename'] = file.filename
                         session['document_size'] = len(file_stream)
                         session['upload_time'] = datetime.now().isoformat()
-                        session['document_preview'] = preview
                         document_uploaded = True
+                        
+                        print(f"Document uploaded and stored successfully: {file.filename}")  # Debug log
+                    else:
+                        print("No summary generated")  # Debug log
+                        error = "Failed to generate summary from the document."
                 else:
                     error = f"Could not extract any text from the file. The file might be empty, corrupted, or an unsupported format."
             
@@ -534,13 +554,7 @@ def chat():
         print(f"Chat endpoint error: {e}")  # Debug log
         return jsonify({'error': 'An unexpected error occurred.'}), 500
 
-@app.route('/preview')
-def preview():
-    """Get document preview data."""
-    if 'document_preview' not in session:
-        return jsonify({'error': 'No document uploaded'}), 400
-    
-    return jsonify(session['document_preview'])
+# Preview functionality removed - focusing on core functionality
 
 @app.route('/document-info')
 def document_info():
@@ -624,6 +638,38 @@ def test_api():
             
     except Exception as e:
         return jsonify({'error': f'API test failed: {str(e)}'}), 500
+
+@app.route('/test-db', methods=['GET'])
+def test_database():
+    """Test if the database is working."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Test database connection
+        cursor.execute('SELECT COUNT(*) as count FROM documents')
+        result = cursor.fetchone()
+        total_documents = result['count']
+        
+        # Get session documents if session exists
+        session_documents = 0
+        if 'session_id' in session:
+            cursor.execute('SELECT COUNT(*) as count FROM documents WHERE session_id = ?', (session['session_id'],))
+            result = cursor.fetchone()
+            session_documents = result['count']
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Database is working correctly',
+            'total_documents': total_documents,
+            'session_documents': session_documents,
+            'session_id': session.get('session_id', 'No session')
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Database test failed: {str(e)}'}), 500
 
 @app.route('/documents')
 def get_documents():

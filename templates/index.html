@@ -701,11 +701,12 @@
         </div>
         <div class="header-actions">
             <button class="btn" onclick="toggleDocumentHistory()" id="historyBtn">
-                📁 My Documents
+                📁 My Documents <span id="docCount" style="background: #10a37f; color: white; padding: 2px 6px; border-radius: 10px; font-size: 0.7rem; margin-left: 5px;">0</span>
             </button>
             <button class="btn" onclick="testAPI()" id="testBtn">Test API</button>
+            <button class="btn" onclick="testDatabase()" id="testDbBtn">Test DB</button>
             <button class="btn" onclick="clearSession()">New Chat</button>
-            <button class="btn btn-primary" onclick="exportSummary()" id="exportBtn" style="display: none;">Export Summary</button>
+            <button class="btn btn-primary" onclick="exportSummary()" id="exportBtn" {% if summary %}style="display: inline-flex;"{% else %}style="display: none;"{% endif %}>Export Summary</button>
         </div>
     </div>
 
@@ -765,23 +766,20 @@
                 </div>
             </div>
 
-            <div class="preview-section" id="previewSection">
-                <div class="preview-header">
-                    <div class="preview-title">Document Preview</div>
-                </div>
-                <div class="preview-content" id="previewContent">
-                </div>
-            </div>
+            <!-- Preview section removed - focusing on core functionality -->
 
-            <div class="summary-section" id="summarySection">
+            <div class="summary-section" id="summarySection" {% if summary %}style="display: block;"{% else %}style="display: none;"{% endif %}>
                 <div class="summary-header">
                     <div class="preview-title">AI Summary</div>
                 </div>
                 <div class="summary-content" id="summaryContent">
+                    {% if summary %}
+                        {{ summary }}
+                    {% endif %}
                 </div>
             </div>
 
-            <div class="chat-section" id="chatSection">
+            <div class="chat-section" id="chatSection" {% if summary %}style="display: block;"{% else %}style="display: none;"{% endif %}>
                 <div class="chat-header">
                     <div class="preview-title">Chat with Document</div>
                 </div>
@@ -833,14 +831,28 @@
             const formData = new FormData();
             formData.append('pdf_file', file);
             
-            document.getElementById('loading').style.display = 'block';
+            // Show loading with progress
+            const loadingDiv = document.getElementById('loading');
+            loadingDiv.style.display = 'block';
+            loadingDiv.innerHTML = `
+                <div class="spinner"></div>
+                <div>Processing document...</div>
+                <div style="font-size: 0.8rem; color: #8a8a8a; margin-top: 0.5rem;">
+                    Extracting text and generating preview...
+                </div>
+            `;
             document.getElementById('errorMessage').style.display = 'none';
             
             fetch('/', {
                 method: 'POST',
                 body: formData
             })
-            .then(response => response.text())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.text();
+            })
             .then(html => {
                 // Parse the response to extract summary and check for errors
                 const parser = new DOMParser();
@@ -853,15 +865,27 @@
                 } else if (summaryElement) {
                     currentSummary = summaryElement.textContent.trim();
                     showSummary(currentSummary);
-                    loadDocumentPreview();
-                    loadDocumentInfo();
-                    loadDocumentHistory();
+                    
+                    // Update loading message
+                    loadingDiv.innerHTML = `
+                        <div class="spinner"></div>
+                        <div>Document uploaded and stored successfully!</div>
+                    `;
+                    
+                    // Load document info and history immediately
+                    setTimeout(() => {
+                        loadDocumentInfo();
+                        loadDocumentHistory();
+                    }, 500); // Small delay to ensure session is set
+                    
                     document.getElementById('exportBtn').style.display = 'inline-flex';
+                } else {
+                    showError('No summary generated. Please try again.');
                 }
             })
             .catch(error => {
-                showError('An error occurred while processing the document.');
-                console.error('Error:', error);
+                showError('An error occurred while processing the document: ' + error.message);
+                console.error('Upload error:', error);
             })
             .finally(() => {
                 document.getElementById('loading').style.display = 'none';
@@ -879,61 +903,26 @@
             document.getElementById('errorMessage').style.display = 'block';
         }
 
-        function loadDocumentPreview() {
-            fetch('/preview')
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    console.error('Preview error:', data.error);
-                    return;
-                }
-                
-                const previewContent = document.getElementById('previewContent');
-                previewContent.innerHTML = '';
-                
-                if (data.type === 'pdf') {
-                    data.pages.forEach(page => {
-                        const pageDiv = document.createElement('div');
-                        pageDiv.className = 'pdf-page';
-                        pageDiv.innerHTML = `
-                            <img src="data:image/png;base64,${page.image}" alt="Page ${page.page}">
-                            <div class="page-info">Page ${page.page} of ${data.total_pages}</div>
-                        `;
-                        previewContent.appendChild(pageDiv);
-                    });
-                } else if (data.type === 'table') {
-                    const table = document.createElement('table');
-                    data.data.forEach((row, index) => {
-                        const tr = document.createElement('tr');
-                        row.forEach(cell => {
-                            const td = document.createElement(index === 0 ? 'th' : 'td');
-                            td.textContent = cell;
-                            tr.appendChild(td);
-                        });
-                        table.appendChild(tr);
-                    });
-                    previewContent.innerHTML = '<div class="table-preview"></div>';
-                    previewContent.querySelector('.table-preview').appendChild(table);
-                } else if (data.type === 'html') {
-                    previewContent.innerHTML = `
-                        <div style="padding: 1rem; background: #2a2a2a; border-radius: 8px;">
-                            <h4 style="color: #10a37f; margin-bottom: 0.5rem;">${data.title}</h4>
-                            <p style="color: #cccccc; line-height: 1.6;">${data.preview_text}...</p>
-                        </div>
-                    `;
-                }
-                
-                document.getElementById('previewSection').style.display = 'block';
-            })
-            .catch(error => {
-                console.error('Error loading preview:', error);
-            });
-        }
+        // Preview functionality removed - focusing on core functionality
 
         function loadDocumentInfo() {
+            // Only load document info if a document is actually loaded
+            if (document.getElementById('exportBtn').style.display === 'none') {
+                console.log('No document loaded - skipping document info');
+                return;
+            }
+            
             fetch('/document-info')
-            .then(response => response.json())
+            .then(response => {
+                if (response.status === 400) {
+                    console.log('No document uploaded - document info not available');
+                    return;
+                }
+                return response.json();
+            })
             .then(data => {
+                if (!data) return;
+                
                 if (data.error) {
                     console.error('Document info error:', data.error);
                     return;
@@ -1004,9 +993,15 @@
                     // Update stats
                     document.getElementById('totalDocs').textContent = data.documents.length;
                     document.getElementById('totalSize').textContent = formatFileSize(totalSize);
+                    
+                    // Update document count in header
+                    document.getElementById('docCount').textContent = data.documents.length;
                 } else {
                     emptyState.style.display = 'block';
                     sidebarStats.style.display = 'none';
+                    
+                    // Update document count in header
+                    document.getElementById('docCount').textContent = '0';
                 }
             })
             .catch(error => {
@@ -1080,6 +1075,8 @@
         // Initialize search on page load
         document.addEventListener('DOMContentLoaded', function() {
             setupDocumentSearch();
+            // Load document history if there are any documents
+            loadDocumentHistory();
         });
 
         // Chat functionality
@@ -1087,6 +1084,12 @@
             const input = document.getElementById('chatInput');
             const question = input.value.trim();
             if (!question) return;
+            
+            // Check if document is loaded before allowing chat
+            if (document.getElementById('exportBtn').style.display === 'none') {
+                addMessage('Please upload a document first before asking questions.', 'bot');
+                return;
+            }
             
             addMessage(question, 'user');
             input.value = '';
@@ -1230,6 +1233,30 @@
             .finally(() => {
                 testBtn.disabled = false;
                 testBtn.textContent = 'Test API';
+            });
+        }
+
+        function testDatabase() {
+            const testDbBtn = document.getElementById('testDbBtn');
+            testDbBtn.disabled = true;
+            testDbBtn.textContent = 'Testing...';
+            
+            fetch('/test-db')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`✅ Database is working!\n\nTotal Documents: ${data.total_documents}\nSession Documents: ${data.session_documents}\nSession ID: ${data.session_id}`);
+                } else {
+                    alert('❌ Database Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                alert('❌ Network Error: ' + error.message);
+                console.error('Database test error:', error);
+            })
+            .finally(() => {
+                testDbBtn.disabled = false;
+                testDbBtn.textContent = 'Test DB';
             });
         }
 
