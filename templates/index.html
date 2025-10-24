@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Reader & Summarizer</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .upload-area {
+            border: 2px dashed #ddd;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 20px;
+            transition: border-color 0.3s;
+        }
+        .upload-area:hover {
+            border-color: #007bff;
+        }
+        .file-input {
+            margin: 20px 0;
+        }
+        input[type="file"] {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            width: 100%;
+            max-width: 400px;
+        }
+        .submit-btn {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        .submit-btn:hover {
+            background-color: #0056b3;
+        }
+        .summary {
+            background-color: #f8f9fa;
+            border-left: 4px solid #007bff;
+            padding: 20px;
+            margin-top: 20px;
+            border-radius: 5px;
+        }
+        .error {
+            background-color: #f8d7da;
+            border-left: 4px solid #dc3545;
+            color: #721c24;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 5px;
+        }
+        .supported-formats {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e9ecef;
+            border-radius: 5px;
+        }
+        .supported-formats h3 {
+            margin-top: 0;
+            color: #495057;
+        }
+        .format-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .format-tag {
+            background-color: #007bff;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+        }
+        
+        /* Chat Interface Styles */
+        .chat-section {
+            margin-top: 30px;
+            background-color: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+        }
+        
+        .chat-container {
+            max-width: 100%;
+        }
+        
+        .chat-messages {
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 15px;
+            background-color: white;
+            margin-bottom: 15px;
+        }
+        
+        .message {
+            margin-bottom: 15px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .user-message {
+            align-items: flex-end;
+        }
+        
+        .bot-message {
+            align-items: flex-start;
+        }
+        
+        .message-content {
+            max-width: 80%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            word-wrap: break-word;
+        }
+        
+        .user-message .message-content {
+            background-color: #007bff;
+            color: white;
+        }
+        
+        .bot-message .message-content {
+            background-color: #e9ecef;
+            color: #333;
+        }
+        
+        .chat-input-container {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .chat-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid #ddd;
+            border-radius: 25px;
+            font-size: 14px;
+            outline: none;
+        }
+        
+        .chat-input:focus {
+            border-color: #007bff;
+        }
+        
+        .send-button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            padding: 12px 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .send-button:hover {
+            background-color: #0056b3;
+        }
+        
+        .send-button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .typing-indicator {
+            color: #666;
+            font-style: italic;
+            padding: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📄 Document Reader & Summarizer</h1>
+        <p style="text-align: center; color: #666; margin-bottom: 30px;">
+            Upload a document and get an AI-powered summary using Google's Gemini AI
+        </p>
+        
+        <form method="post" enctype="multipart/form-data">
+            <div class="upload-area">
+                <h3>📁 Choose a Document</h3>
+                <div class="file-input">
+                    <input type="file" name="pdf_file" accept=".pdf,.csv,.xlsx,.html" required>
+                </div>
+                <button type="submit" class="submit-btn">🚀 Generate Summary</button>
+            </div>
+        </form>
+
+        <div class="supported-formats">
+            <h3>📋 Supported File Types</h3>
+            <div class="format-list">
+                <span class="format-tag">PDF</span>
+                <span class="format-tag">CSV</span>
+                <span class="format-tag">Excel (XLSX)</span>
+                <span class="format-tag">HTML</span>
+            </div>
+        </div>
+
+        {% if summary %}
+        <div class="summary">
+            <h3>📝 AI Summary</h3>
+            <p>{{ summary }}</p>
+        </div>
+        {% endif %}
+
+        {% if document_uploaded %}
+        <div class="chat-section">
+            <h3>💬 Ask Questions About Your Document</h3>
+            <div class="chat-container">
+                <div id="chat-messages" class="chat-messages">
+                    <div class="message bot-message">
+                        <div class="message-content">
+                            <strong>AI Assistant:</strong> Hello! I've analyzed your document. You can now ask me any questions about its content. What would you like to know?
+                        </div>
+                    </div>
+                </div>
+                <div class="chat-input-container">
+                    <input type="text" id="chat-input" placeholder="Ask a question about your document..." class="chat-input">
+                    <button id="send-button" class="send-button">Send</button>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if error %}
+        <div class="error">
+            <h3>❌ Error</h3>
+            <p>{{ error }}</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        // Chat functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const chatInput = document.getElementById('chat-input');
+            const sendButton = document.getElementById('send-button');
+            const chatMessages = document.getElementById('chat-messages');
+            
+            if (chatInput && sendButton && chatMessages) {
+                // Send message function
+                function sendMessage() {
+                    const question = chatInput.value.trim();
+                    if (!question) return;
+                    
+                    // Add user message to chat
+                    addMessage(question, 'user');
+                    chatInput.value = '';
+                    sendButton.disabled = true;
+                    
+                    // Show typing indicator
+                    const typingIndicator = document.createElement('div');
+                    typingIndicator.className = 'message bot-message';
+                    typingIndicator.innerHTML = '<div class="message-content typing-indicator">AI is thinking...</div>';
+                    chatMessages.appendChild(typingIndicator);
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                    
+                    // Send request to server
+                    fetch('/chat', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ question: question })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        // Remove typing indicator
+                        chatMessages.removeChild(typingIndicator);
+                        
+                        if (data.error) {
+                            addMessage('Error: ' + data.error, 'bot');
+                        } else {
+                            addMessage(data.answer, 'bot');
+                        }
+                        sendButton.disabled = false;
+                    })
+                    .catch(error => {
+                        // Remove typing indicator
+                        chatMessages.removeChild(typingIndicator);
+                        addMessage('Error: Failed to get response from server.', 'bot');
+                        sendButton.disabled = false;
+                        console.error('Error:', error);
+                    });
+                }
+                
+                // Add message to chat
+                function addMessage(content, sender) {
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = `message ${sender}-message`;
+                    
+                    const messageContent = document.createElement('div');
+                    messageContent.className = 'message-content';
+                    
+                    if (sender === 'bot') {
+                        messageContent.innerHTML = '<strong>AI Assistant:</strong> ' + content;
+                    } else {
+                        messageContent.textContent = content;
+                    }
+                    
+                    messageDiv.appendChild(messageContent);
+                    chatMessages.appendChild(messageDiv);
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                }
+                
+                // Event listeners
+                sendButton.addEventListener('click', sendMessage);
+                
+                chatInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        sendMessage();
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
