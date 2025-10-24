@@ -498,26 +498,41 @@ def index():
 @app.route('/chat', methods=['POST'])
 def chat():
     """Handle chat questions about the uploaded document."""
-    if 'document_text' not in session:
-        return jsonify({'error': 'No document uploaded. Please upload a document first.'}), 400
-    
-    data = request.get_json()
-    question = data.get('question', '').strip()
-    
-    if not question:
-        return jsonify({'error': 'Please provide a question.'}), 400
-    
-    # Get the answer from Gemini
-    answer, error = get_chat_response_from_gemini(question, session['document_text'])
-    
-    if error:
-        return jsonify({'error': error}), 500
-    
-    # Store chat message in database
-    if 'document_id' in session:
-        store_chat_message(session['document_id'], question, answer)
-    
-    return jsonify({'answer': answer})
+    try:
+        if 'document_text' not in session:
+            return jsonify({'error': 'No document uploaded. Please upload a document first.'}), 400
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Invalid request data.'}), 400
+            
+        question = data.get('question', '').strip()
+        
+        if not question:
+            return jsonify({'error': 'Please provide a question.'}), 400
+        
+        print(f"Chat request: {question}")  # Debug log
+        
+        # Get the answer from Gemini
+        answer, error = get_chat_response_from_gemini(question, session['document_text'])
+        
+        if error:
+            print(f"Gemini API error: {error}")  # Debug log
+            return jsonify({'error': error}), 500
+        
+        # Store chat message in database
+        if 'document_id' in session:
+            try:
+                store_chat_message(session['document_id'], question, answer)
+            except Exception as db_error:
+                print(f"Database error: {db_error}")  # Debug log
+                # Don't fail the request if database storage fails
+        
+        return jsonify({'answer': answer})
+        
+    except Exception as e:
+        print(f"Chat endpoint error: {e}")  # Debug log
+        return jsonify({'error': 'An unexpected error occurred.'}), 500
 
 @app.route('/preview')
 def preview():
@@ -570,6 +585,45 @@ def clear_session():
     """Clear the current session."""
     session.clear()
     return jsonify({'success': True})
+
+@app.route('/test-api', methods=['GET'])
+def test_api():
+    """Test if the Gemini API is working."""
+    if not API_KEY:
+        return jsonify({'error': 'GEMINI_API_KEY is not set'}), 400
+    
+    try:
+        # Test with a simple request
+        test_payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {"text": "Hello, this is a test message. Please respond with 'API is working'."}
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "temperature": 0.1,
+                "topK": 1,
+                "topP": 1,
+                "maxOutputTokens": 50,
+            }
+        }
+        
+        headers = {'Content-Type': 'application/json'}
+        response = requests.post(GEMINI_API_URL, headers=headers, json=test_payload, timeout=10)
+        
+        if response.status_code == 200:
+            result = response.json()
+            if 'candidates' in result:
+                return jsonify({'success': True, 'message': 'API is working correctly'})
+            else:
+                return jsonify({'error': 'Invalid API response format'}), 500
+        else:
+            return jsonify({'error': f'API returned status {response.status_code}: {response.text}'}), 500
+            
+    except Exception as e:
+        return jsonify({'error': f'API test failed: {str(e)}'}), 500
 
 @app.route('/documents')
 def get_documents():

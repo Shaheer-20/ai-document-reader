@@ -703,6 +703,7 @@
             <button class="btn" onclick="toggleDocumentHistory()" id="historyBtn">
                 📁 My Documents
             </button>
+            <button class="btn" onclick="testAPI()" id="testBtn">Test API</button>
             <button class="btn" onclick="clearSession()">New Chat</button>
             <button class="btn btn-primary" onclick="exportSummary()" id="exportBtn" style="display: none;">Export Summary</button>
         </div>
@@ -1118,22 +1119,43 @@
                 },
                 body: JSON.stringify({ question: question })
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
-                document.getElementById('chatMessages').removeChild(typingIndicator);
+                // Remove typing indicator
+                if (document.getElementById('chatMessages').contains(typingIndicator)) {
+                    document.getElementById('chatMessages').removeChild(typingIndicator);
+                }
                 
                 if (data.error) {
                     addMessage('Error: ' + data.error, 'bot');
-                } else {
+                } else if (data.answer) {
                     addMessage(data.answer, 'bot');
+                } else {
+                    addMessage('Error: No response received from server.', 'bot');
                 }
                 sendButton.disabled = false;
             })
             .catch(error => {
-                document.getElementById('chatMessages').removeChild(typingIndicator);
-                addMessage('Error: Failed to get response from server.', 'bot');
+                // Remove typing indicator
+                if (document.getElementById('chatMessages').contains(typingIndicator)) {
+                    document.getElementById('chatMessages').removeChild(typingIndicator);
+                }
+                
+                let errorMessage = 'Error: Failed to get response from server.';
+                if (error.message.includes('HTTP error')) {
+                    errorMessage = 'Error: Server error. Please try again.';
+                } else if (error.message.includes('Failed to fetch')) {
+                    errorMessage = 'Error: Network error. Please check your connection.';
+                }
+                
+                addMessage(errorMessage, 'bot');
                 sendButton.disabled = false;
-                console.error('Error:', error);
+                console.error('Chat error:', error);
             });
         }
 
@@ -1184,6 +1206,30 @@
             .catch(error => {
                 console.error('Error clearing session:', error);
                 location.reload();
+            });
+        }
+
+        function testAPI() {
+            const testBtn = document.getElementById('testBtn');
+            testBtn.disabled = true;
+            testBtn.textContent = 'Testing...';
+            
+            fetch('/test-api')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ API is working correctly!');
+                } else {
+                    alert('❌ API Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                alert('❌ Network Error: ' + error.message);
+                console.error('API test error:', error);
+            })
+            .finally(() => {
+                testBtn.disabled = false;
+                testBtn.textContent = 'Test API';
             });
         }
 
