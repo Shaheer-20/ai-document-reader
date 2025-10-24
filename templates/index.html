@@ -5,82 +5,136 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document Reader & Summarizer</title>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap');
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f5f5f5;
+            font-family: 'Open Sans', sans-serif;
+            font-weight: 400;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         .container {
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            max-width: 900px;
+            width: 100%;
+            margin: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
         h1 {
-            color: #333;
+            font-family: 'Open Sans', sans-serif;
+            font-weight: 700;
+            color: #2c3e50;
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 10px;
+            font-size: 2.5rem;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .subtitle {
+            font-family: 'Open Sans', sans-serif;
+            font-weight: 300;
+            color: #7f8c8d;
+            text-align: center;
+            margin-bottom: 40px;
+            font-size: 1.1rem;
         }
         .upload-area {
-            border: 2px dashed #ddd;
-            border-radius: 10px;
-            padding: 40px;
+            border: 2px dashed #bdc3c7;
+            border-radius: 15px;
+            padding: 50px 30px;
             text-align: center;
-            margin-bottom: 20px;
-            transition: border-color 0.3s;
+            margin-bottom: 30px;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(5px);
         }
         .upload-area:hover {
-            border-color: #007bff;
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+            transform: translateY(-2px);
         }
         .file-input {
-            margin: 20px 0;
+            margin: 30px 0;
         }
         input[type="file"] {
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
+            font-family: 'Open Sans', sans-serif;
+            font-weight: 400;
+            padding: 15px 20px;
+            border: 2px solid #e0e6ed;
+            border-radius: 12px;
             width: 100%;
-            max-width: 400px;
+            max-width: 500px;
+            background: white;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        input[type="file"]:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
         }
         .submit-btn {
-            background-color: #007bff;
+            font-family: 'Open Sans', sans-serif;
+            font-weight: 600;
+            background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
-            padding: 12px 30px;
+            padding: 15px 40px;
             border: none;
-            border-radius: 5px;
+            border-radius: 12px;
             cursor: pointer;
             font-size: 16px;
-            transition: background-color 0.3s;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
         }
         .submit-btn:hover {
-            background-color: #0056b3;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
         }
         .summary {
-            background-color: #f8f9fa;
-            border-left: 4px solid #007bff;
-            padding: 20px;
-            margin-top: 20px;
-            border-radius: 5px;
+            font-family: 'Open Sans', sans-serif;
+            font-weight: 400;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+            border-left: 4px solid #667eea;
+            padding: 25px;
+            margin-top: 30px;
+            border-radius: 12px;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(102, 126, 234, 0.2);
         }
         .error {
-            background-color: #f8d7da;
-            border-left: 4px solid #dc3545;
-            color: #721c24;
-            padding: 15px;
-            margin-top: 20px;
-            border-radius: 5px;
+            font-family: 'Open Sans', sans-serif;
+            font-weight: 400;
+            background: linear-gradient(135deg, rgba(231, 76, 60, 0.1), rgba(192, 57, 43, 0.1));
+            border-left: 4px solid #e74c3c;
+            color: #c0392b;
+            padding: 20px;
+            margin-top: 30px;
+            border-radius: 12px;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(231, 76, 60, 0.2);
         }
         .supported-formats {
-            margin-top: 20px;
-            padding: 15px;
-            background-color: #e9ecef;
-            border-radius: 5px;
+            margin-top: 30px;
+            padding: 25px;
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
         }
         .supported-formats h3 {
+            font-family: 'Open Sans', sans-serif;
+            font-weight: 600;
             margin-top: 0;
-            color: #495057;
+            color: #2c3e50;
         }
         .format-list {
             display: flex;
@@ -88,19 +142,37 @@
             gap: 10px;
         }
         .format-tag {
-            background-color: #007bff;
+            font-family: 'Open Sans', sans-serif;
+            font-weight: 500;
+            background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
-            padding: 5px 10px;
-            border-radius: 15px;
-            font-size: 12px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+            transition: all 0.3s ease;
+        }
+        .format-tag:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
         }
         
         /* Chat Interface Styles */
         .chat-section {
-            margin-top: 30px;
-            background-color: #f8f9fa;
-            border-radius: 10px;
-            padding: 20px;
+            font-family: 'Open Sans', sans-serif;
+            margin-top: 40px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 20px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        .chat-section h3 {
+            font-family: 'Open Sans', sans-serif;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 20px;
         }
         
         .chat-container {
@@ -108,13 +180,15 @@
         }
         
         .chat-messages {
+            font-family: 'Open Sans', sans-serif;
             height: 400px;
             overflow-y: auto;
-            border: 1px solid #ddd;
-            border-radius: 10px;
-            padding: 15px;
-            background-color: white;
-            margin-bottom: 15px;
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            border-radius: 15px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            margin-bottom: 20px;
+            backdrop-filter: blur(5px);
         }
         
         .message {
@@ -132,20 +206,26 @@
         }
         
         .message-content {
+            font-family: 'Open Sans', sans-serif;
+            font-weight: 400;
             max-width: 80%;
-            padding: 12px 16px;
-            border-radius: 18px;
+            padding: 15px 20px;
+            border-radius: 20px;
             word-wrap: break-word;
+            line-height: 1.5;
         }
         
         .user-message .message-content {
-            background-color: #007bff;
+            background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
         }
         
         .bot-message .message-content {
-            background-color: #e9ecef;
-            color: #333;
+            background: rgba(255, 255, 255, 0.9);
+            color: #2c3e50;
+            border: 1px solid rgba(102, 126, 234, 0.1);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
         
         .chat-input-container {
@@ -154,36 +234,47 @@
         }
         
         .chat-input {
+            font-family: 'Open Sans', sans-serif;
+            font-weight: 400;
             flex: 1;
-            padding: 12px 16px;
-            border: 1px solid #ddd;
+            padding: 15px 20px;
+            border: 2px solid rgba(102, 126, 234, 0.2);
             border-radius: 25px;
             font-size: 14px;
             outline: none;
+            background: rgba(255, 255, 255, 0.9);
+            transition: all 0.3s ease;
         }
         
         .chat-input:focus {
-            border-color: #007bff;
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
         }
         
         .send-button {
-            background-color: #007bff;
+            font-family: 'Open Sans', sans-serif;
+            font-weight: 600;
+            background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
             border: none;
             border-radius: 25px;
-            padding: 12px 20px;
+            padding: 15px 25px;
             cursor: pointer;
             font-size: 14px;
-            transition: background-color 0.3s;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
         }
         
         .send-button:hover {
-            background-color: #0056b3;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
         }
         
         .send-button:disabled {
-            background-color: #6c757d;
+            background: linear-gradient(135deg, #95a5a6, #7f8c8d);
             cursor: not-allowed;
+            transform: none;
+            box-shadow: 0 2px 8px rgba(149, 165, 166, 0.3);
         }
         
         .typing-indicator {
@@ -196,7 +287,7 @@
 <body>
     <div class="container">
         <h1>📄 Document Reader & Summarizer</h1>
-        <p style="text-align: center; color: #666; margin-bottom: 30px;">
+        <p class="subtitle">
             Upload a document and get an AI-powered summary using Google's Gemini AI
         </p>
         
