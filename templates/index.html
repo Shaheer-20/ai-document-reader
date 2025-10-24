@@ -530,12 +530,19 @@
                     • AI-powered summaries<br>
                     • Interactive chat<br>
                     • Export summaries<br>
-                    • Multiple formats
+                    • Multiple formats<br>
+                    • Document history
+                </div>
+            </div>
+            
+            <div class="sidebar-section" id="documentHistory" style="display: none;">
+                <div class="sidebar-title">Recent Documents</div>
+                <div class="sidebar-content" id="documentList">
                 </div>
             </div>
             
             <div class="sidebar-section" id="documentInfo" style="display: none;">
-                <div class="sidebar-title">Document Info</div>
+                <div class="sidebar-title">Current Document</div>
                 <div class="sidebar-content" id="documentDetails">
                 </div>
             </div>
@@ -652,6 +659,7 @@
                     showSummary(currentSummary);
                     loadDocumentPreview();
                     loadDocumentInfo();
+                    loadDocumentHistory();
                     document.getElementById('exportBtn').style.display = 'inline-flex';
                 }
             })
@@ -747,6 +755,61 @@
             })
             .catch(error => {
                 console.error('Error loading document info:', error);
+            });
+        }
+
+        function loadDocumentHistory() {
+            fetch('/documents')
+            .then(response => response.json())
+            .then(data => {
+                if (data.documents && data.documents.length > 0) {
+                    const documentList = document.getElementById('documentList');
+                    documentList.innerHTML = '';
+                    
+                    data.documents.forEach(doc => {
+                        const docElement = document.createElement('div');
+                        docElement.style.cssText = 'margin-bottom: 0.5rem; padding: 0.5rem; background: #2a2a2a; border-radius: 6px; cursor: pointer; transition: background 0.2s;';
+                        docElement.innerHTML = `
+                            <div style="font-weight: 500; color: #ffffff; margin-bottom: 0.25rem;">${doc.filename}</div>
+                            <div style="font-size: 0.8rem; color: #8a8a8a;">
+                                ${formatFileSize(doc.file_size)} • ${new Date(doc.upload_time).toLocaleDateString()}
+                            </div>
+                        `;
+                        
+                        docElement.addEventListener('click', () => loadDocument(doc.id));
+                        docElement.addEventListener('mouseenter', () => {
+                            docElement.style.background = '#3a3a3a';
+                        });
+                        docElement.addEventListener('mouseleave', () => {
+                            docElement.style.background = '#2a2a2a';
+                        });
+                        
+                        documentList.appendChild(docElement);
+                    });
+                    
+                    document.getElementById('documentHistory').style.display = 'block';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading document history:', error);
+            });
+        }
+
+        function loadDocument(documentId) {
+            fetch(`/document/${documentId}/load`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Reload the page to show the loaded document
+                    location.reload();
+                } else {
+                    console.error('Error loading document:', data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error loading document:', error);
             });
         }
 

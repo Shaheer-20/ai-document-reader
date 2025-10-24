@@ -12,12 +12,129 @@ import uuid
 import base64
 import json
 from datetime import datetime
+import sqlite3
+import hashlib
 
 # Load environment variables from a .env file
 load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-change-this-in-production'
+
+# --- Database Configuration ---
+DATABASE = 'documents.db'
+
+def init_db():
+    """Initialize the database with required tables."""
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    
+    # Create documents table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS documents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            filename TEXT NOT NULL,
+            file_hash TEXT UNIQUE NOT NULL,
+            file_size INTEGER NOT NULL,
+            file_type TEXT NOT NULL,
+            upload_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            text_content TEXT,
+            summary TEXT,
+            preview_data TEXT,
+            session_id TEXT
+        )
+    ''')
+    
+    # Create chat_history table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS chat_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            document_id INTEGER,
+            question TEXT NOT NULL,
+            answer TEXT NOT NULL,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (document_id) REFERENCES documents (id)
+        )
+    ''')
+    
+    conn.commit()
+    conn.close()
+
+def get_db_connection():
+    """Get database connection."""
+    conn = sqlite3.connect(DATABASE)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def store_document(file_data, filename, text_content, summary=None, preview_data=None, session_id=None):
+    """Store document in database."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Generate file hash for uniqueness
+    file_hash = hashlib.md5(file_data).hexdigest()
+    file_size = len(file_data)
+    file_type = os.path.splitext(filename)[1].lower()
+    
+    try:
+        cursor.execute('''
+            INSERT INTO documents (filename, file_hash, file_size, file_type, text_content, summary, preview_data, session_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (filename, file_hash, file_size, file_type, text_content, summary, json.dumps(preview_data) if preview_data else None, session_id))
+        
+        document_id = cursor.lastrowid
+        conn.commit()
+        return document_id
+    except sqlite3.IntegrityError:
+        # Document already exists, get existing ID
+        cursor.execute('SELECT id FROM documents WHERE file_hash = ?', (file_hash,))
+        result = cursor.fetchone()
+        document_id = result['id'] if result else None
+        conn.commit()
+        return document_id
+    finally:
+        conn.close()
+
+def get_document_by_id(document_id):
+    """Get document by ID."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM documents WHERE id = ?', (document_id,))
+    document = cursor.fetchone()
+    conn.close()
+    return document
+
+def get_documents_by_session(session_id):
+    """Get all documents for a session."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM documents WHERE session_id = ? ORDER BY upload_time DESC', (session_id,))
+    documents = cursor.fetchall()
+    conn.close()
+    return documents
+
+def store_chat_message(document_id, question, answer):
+    """Store chat message in database."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO chat_history (document_id, question, answer)
+        VALUES (?, ?, ?)
+    ''', (document_id, question, answer))
+    conn.commit()
+    conn.close()
+
+def get_chat_history(document_id):
+    """Get chat history for a document."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM chat_history WHERE document_id = ? ORDER BY timestamp ASC', (document_id,))
+    history = cursor.fetchall()
+    conn.close()
+    return history
+
+# Initialize database on startup
+init_db()
 
 # --- Gemini API Configuration ---
 API_KEY = os.getenv("GEMINI_API_KEY")
@@ -337,19 +454,35 @@ def index():
                 text = extract_text_from_file(io.BytesIO(file_stream), file.filename)
 
                 if text:
-                    # Store document text in session for chat functionality
-                    session['document_text'] = text
-                    session['document_filename'] = file.filename
-                    session['document_size'] = len(file_stream)
-                    session['upload_time'] = datetime.now().isoformat()
-                    document_uploaded = True
-                    
                     # Generate document preview
                     preview = generate_document_preview(io.BytesIO(file_stream), file.filename)
-                    session['document_preview'] = preview
                     
-                    # 5. Get summary from Gemini
+                    # Get summary from Gemini
                     summary, error = get_summary_from_gemini(text)
+                    
+                    if not error and summary:
+                        # Store document in database
+                        session_id = session.get('session_id', str(uuid.uuid4()))
+                        if 'session_id' not in session:
+                            session['session_id'] = session_id
+                        
+                        document_id = store_document(
+                            file_stream, 
+                            file.filename, 
+                            text, 
+                            summary, 
+                            preview, 
+                            session_id
+                        )
+                        
+                        # Store document info in session for chat functionality
+                        session['document_id'] = document_id
+                        session['document_text'] = text
+                        session['document_filename'] = file.filename
+                        session['document_size'] = len(file_stream)
+                        session['upload_time'] = datetime.now().isoformat()
+                        session['document_preview'] = preview
+                        document_uploaded = True
                 else:
                     error = f"Could not extract any text from the file. The file might be empty, corrupted, or an unsupported format."
             
@@ -379,6 +512,10 @@ def chat():
     
     if error:
         return jsonify({'error': error}), 500
+    
+    # Store chat message in database
+    if 'document_id' in session:
+        store_chat_message(session['document_id'], question, answer)
     
     return jsonify({'answer': answer})
 
@@ -433,6 +570,76 @@ def clear_session():
     """Clear the current session."""
     session.clear()
     return jsonify({'success': True})
+
+@app.route('/documents')
+def get_documents():
+    """Get all documents for the current session."""
+    if 'session_id' not in session:
+        return jsonify({'documents': []})
+    
+    documents = get_documents_by_session(session['session_id'])
+    document_list = []
+    
+    for doc in documents:
+        document_list.append({
+            'id': doc['id'],
+            'filename': doc['filename'],
+            'file_size': doc['file_size'],
+            'file_type': doc['file_type'],
+            'upload_time': doc['upload_time'],
+            'has_summary': bool(doc['summary'])
+        })
+    
+    return jsonify({'documents': document_list})
+
+@app.route('/document/<int:document_id>')
+def get_document(document_id):
+    """Get specific document details."""
+    document = get_document_by_id(document_id)
+    if not document:
+        return jsonify({'error': 'Document not found'}), 404
+    
+    return jsonify({
+        'id': document['id'],
+        'filename': document['filename'],
+        'file_size': document['file_size'],
+        'file_type': document['file_type'],
+        'upload_time': document['upload_time'],
+        'summary': document['summary'],
+        'preview_data': json.loads(document['preview_data']) if document['preview_data'] else None
+    })
+
+@app.route('/document/<int:document_id>/chat-history')
+def get_document_chat_history(document_id):
+    """Get chat history for a specific document."""
+    history = get_chat_history(document_id)
+    chat_list = []
+    
+    for msg in history:
+        chat_list.append({
+            'question': msg['question'],
+            'answer': msg['answer'],
+            'timestamp': msg['timestamp']
+        })
+    
+    return jsonify({'chat_history': chat_list})
+
+@app.route('/document/<int:document_id>/load', methods=['POST'])
+def load_document(document_id):
+    """Load a specific document into the current session."""
+    document = get_document_by_id(document_id)
+    if not document:
+        return jsonify({'error': 'Document not found'}), 404
+    
+    # Load document into session
+    session['document_id'] = document['id']
+    session['document_text'] = document['text_content']
+    session['document_filename'] = document['filename']
+    session['document_size'] = document['file_size']
+    session['upload_time'] = document['upload_time']
+    session['document_preview'] = json.loads(document['preview_data']) if document['preview_data'] else None
+    
+    return jsonify({'success': True, 'message': 'Document loaded successfully'})
 
 if __name__ == '__main__':
     # Use 0.0.0.0 to make it accessible on your network, or keep 127.0.0.1
