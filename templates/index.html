@@ -86,12 +86,197 @@
         }
         
         .sidebar {
-            width: 300px;
+            width: 320px;
             background: #1a1a1a;
             border-radius: 12px;
-            padding: 1.5rem;
-            height: fit-content;
             border: 1px solid #2a2a2a;
+            height: calc(100vh - 120px);
+            display: none;
+            flex-direction: column;
+            position: fixed;
+            left: 2rem;
+            top: 100px;
+            z-index: 1000;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        
+        .sidebar.show {
+            display: flex;
+        }
+        
+        .sidebar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 1.5rem 1rem 1.5rem;
+            border-bottom: 1px solid #2a2a2a;
+        }
+        
+        .sidebar-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #ffffff;
+        }
+        
+        .btn-close {
+            background: none;
+            border: none;
+            color: #8a8a8a;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0.25rem;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        
+        .btn-close:hover {
+            background: #2a2a2a;
+            color: #ffffff;
+        }
+        
+        .sidebar-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .document-search {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid #2a2a2a;
+        }
+        
+        .search-input {
+            width: 100%;
+            background: #2a2a2a;
+            border: 1px solid #3a3a3a;
+            color: #ffffff;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        
+        .search-input:focus {
+            border-color: #10a37f;
+        }
+        
+        .search-input::placeholder {
+            color: #8a8a8a;
+        }
+        
+        .document-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem 0;
+        }
+        
+        .document-item {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1.5rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            border-bottom: 1px solid #1a1a1a;
+        }
+        
+        .document-item:hover {
+            background: #2a2a2a;
+        }
+        
+        .document-item.active {
+            background: #10a37f20;
+            border-left: 3px solid #10a37f;
+        }
+        
+        .document-icon {
+            font-size: 1.2rem;
+            margin-right: 0.75rem;
+            flex-shrink: 0;
+        }
+        
+        .document-info {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .document-name {
+            font-weight: 500;
+            color: #ffffff;
+            font-size: 0.9rem;
+            margin-bottom: 0.25rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .document-meta {
+            font-size: 0.8rem;
+            color: #8a8a8a;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .document-type {
+            background: #2a2a2a;
+            color: #10a37f;
+            padding: 0.125rem 0.375rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 500;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1.5rem;
+            color: #8a8a8a;
+        }
+        
+        .empty-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+        
+        .empty-text {
+            font-size: 1rem;
+            font-weight: 500;
+            color: #ffffff;
+            margin-bottom: 0.5rem;
+        }
+        
+        .empty-subtext {
+            font-size: 0.9rem;
+            color: #8a8a8a;
+        }
+        
+        .sidebar-footer {
+            border-top: 1px solid #2a2a2a;
+            padding: 1rem 1.5rem;
+        }
+        
+        .sidebar-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+        }
+        
+        .stat-label {
+            color: #8a8a8a;
+        }
+        
+        .stat-value {
+            color: #ffffff;
+            font-weight: 500;
         }
         
         .content-area {
@@ -488,6 +673,10 @@
             
             .sidebar {
                 width: 100%;
+                left: 0;
+                top: 80px;
+                height: calc(100vh - 80px);
+                border-radius: 0;
             }
             
             .header {
@@ -496,6 +685,11 @@
             
             .header-actions {
                 gap: 0.5rem;
+            }
+            
+            .header-actions .btn {
+                padding: 0.5rem 0.75rem;
+                font-size: 0.8rem;
             }
         }
     </style>
@@ -506,44 +700,45 @@
             🤖 AI Document Reader
         </div>
         <div class="header-actions">
+            <button class="btn" onclick="toggleDocumentHistory()" id="historyBtn">
+                📁 My Documents
+            </button>
             <button class="btn" onclick="clearSession()">New Chat</button>
             <button class="btn btn-primary" onclick="exportSummary()" id="exportBtn" style="display: none;">Export Summary</button>
         </div>
     </div>
 
     <div class="main-container">
-        <div class="sidebar">
-            <div class="sidebar-section">
-                <div class="sidebar-title">Supported Formats</div>
-                <div class="format-tags">
-                    <span class="format-tag">PDF</span>
-                    <span class="format-tag">CSV</span>
-                    <span class="format-tag">Excel</span>
-                    <span class="format-tag">HTML</span>
-                </div>
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-title">My Documents</div>
+                <button class="btn-close" onclick="toggleDocumentHistory()" id="closeBtn">×</button>
             </div>
             
-            <div class="sidebar-section">
-                <div class="sidebar-title">Features</div>
-                <div class="sidebar-content">
-                    • Document preview<br>
-                    • AI-powered summaries<br>
-                    • Interactive chat<br>
-                    • Export summaries<br>
-                    • Multiple formats<br>
-                    • Document history
+            <div class="sidebar-content">
+                <div class="document-search">
+                    <input type="text" id="documentSearch" placeholder="Search documents..." class="search-input">
                 </div>
-            </div>
-            
-            <div class="sidebar-section" id="documentHistory" style="display: none;">
-                <div class="sidebar-title">Recent Documents</div>
-                <div class="sidebar-content" id="documentList">
+                
+                <div class="document-list" id="documentList">
+                    <div class="empty-state" id="emptyState">
+                        <div class="empty-icon">📄</div>
+                        <div class="empty-text">No documents yet</div>
+                        <div class="empty-subtext">Upload your first document to get started</div>
+                    </div>
                 </div>
-            </div>
-            
-            <div class="sidebar-section" id="documentInfo" style="display: none;">
-                <div class="sidebar-title">Current Document</div>
-                <div class="sidebar-content" id="documentDetails">
+                
+                <div class="sidebar-footer">
+                    <div class="sidebar-stats" id="sidebarStats" style="display: none;">
+                        <div class="stat-item">
+                            <span class="stat-label">Total Documents:</span>
+                            <span class="stat-value" id="totalDocs">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Total Size:</span>
+                            <span class="stat-value" id="totalSize">0 MB</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -762,37 +957,84 @@
             fetch('/documents')
             .then(response => response.json())
             .then(data => {
+                const documentList = document.getElementById('documentList');
+                const emptyState = document.getElementById('emptyState');
+                const sidebarStats = document.getElementById('sidebarStats');
+                
                 if (data.documents && data.documents.length > 0) {
-                    const documentList = document.getElementById('documentList');
+                    emptyState.style.display = 'none';
+                    sidebarStats.style.display = 'block';
+                    
                     documentList.innerHTML = '';
                     
+                    let totalSize = 0;
                     data.documents.forEach(doc => {
+                        totalSize += doc.file_size;
+                        
                         const docElement = document.createElement('div');
-                        docElement.style.cssText = 'margin-bottom: 0.5rem; padding: 0.5rem; background: #2a2a2a; border-radius: 6px; cursor: pointer; transition: background 0.2s;';
+                        docElement.className = 'document-item';
                         docElement.innerHTML = `
-                            <div style="font-weight: 500; color: #ffffff; margin-bottom: 0.25rem;">${doc.filename}</div>
-                            <div style="font-size: 0.8rem; color: #8a8a8a;">
-                                ${formatFileSize(doc.file_size)} • ${new Date(doc.upload_time).toLocaleDateString()}
+                            <div class="document-icon">${getFileIcon(doc.file_type)}</div>
+                            <div class="document-info">
+                                <div class="document-name" title="${doc.filename}">${doc.filename}</div>
+                                <div class="document-meta">
+                                    <span class="document-type">${doc.file_type.toUpperCase()}</span>
+                                    <span>${formatFileSize(doc.file_size)}</span>
+                                    <span>•</span>
+                                    <span>${new Date(doc.upload_time).toLocaleDateString()}</span>
+                                </div>
                             </div>
                         `;
                         
-                        docElement.addEventListener('click', () => loadDocument(doc.id));
-                        docElement.addEventListener('mouseenter', () => {
-                            docElement.style.background = '#3a3a3a';
-                        });
-                        docElement.addEventListener('mouseleave', () => {
-                            docElement.style.background = '#2a2a2a';
+                        docElement.addEventListener('click', () => {
+                            // Remove active class from all items
+                            document.querySelectorAll('.document-item').forEach(item => {
+                                item.classList.remove('active');
+                            });
+                            // Add active class to clicked item
+                            docElement.classList.add('active');
+                            
+                            loadDocument(doc.id);
                         });
                         
                         documentList.appendChild(docElement);
                     });
                     
-                    document.getElementById('documentHistory').style.display = 'block';
+                    // Update stats
+                    document.getElementById('totalDocs').textContent = data.documents.length;
+                    document.getElementById('totalSize').textContent = formatFileSize(totalSize);
+                } else {
+                    emptyState.style.display = 'block';
+                    sidebarStats.style.display = 'none';
                 }
             })
             .catch(error => {
                 console.error('Error loading document history:', error);
             });
+        }
+
+        function getFileIcon(fileType) {
+            const icons = {
+                '.pdf': '📄',
+                '.csv': '📊',
+                '.xlsx': '📈',
+                '.html': '🌐'
+            };
+            return icons[fileType] || '📄';
+        }
+
+        function toggleDocumentHistory() {
+            const sidebar = document.getElementById('sidebar');
+            const historyBtn = document.getElementById('historyBtn');
+            
+            if (sidebar.classList.contains('show')) {
+                sidebar.classList.remove('show');
+                historyBtn.textContent = '📁 My Documents';
+            } else {
+                sidebar.classList.add('show');
+                historyBtn.textContent = '✕ Close';
+                loadDocumentHistory();
+            }
         }
 
         function loadDocument(documentId) {
@@ -802,7 +1044,8 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // Reload the page to show the loaded document
+                    // Close sidebar and reload the page to show the loaded document
+                    toggleDocumentHistory();
                     location.reload();
                 } else {
                     console.error('Error loading document:', data.error);
@@ -812,6 +1055,31 @@
                 console.error('Error loading document:', error);
             });
         }
+
+        // Search functionality
+        function setupDocumentSearch() {
+            const searchInput = document.getElementById('documentSearch');
+            if (searchInput) {
+                searchInput.addEventListener('input', function() {
+                    const searchTerm = this.value.toLowerCase();
+                    const documentItems = document.querySelectorAll('.document-item');
+                    
+                    documentItems.forEach(item => {
+                        const documentName = item.querySelector('.document-name').textContent.toLowerCase();
+                        if (documentName.includes(searchTerm)) {
+                            item.style.display = 'flex';
+                        } else {
+                            item.style.display = 'none';
+                        }
+                    });
+                });
+            }
+        }
+
+        // Initialize search on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            setupDocumentSearch();
+        });
 
         // Chat functionality
         function sendMessage() {
